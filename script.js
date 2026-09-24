@@ -9,9 +9,11 @@ const player = {x: 40, y: 160, w: 32, h: 32, vx: 120, vy:120}
 
 let last = 0; //Marca a posição do quadro anterior.
 
-function update(dt){// eu uso dt porque ele garante que a bolinha tenha a mesma velocidade independente do FPS do monitor,
-// assim o movimento é medido em pixels por segundo e não em pixels por quadro,
-// então a bola se move da mesma velocidade em qualquer FPS e em qualquer monitor.
+function update(dt){
+// eu uso dt porque ele garante que a bolinha tenha a mesma velocidade independente do FPS do monitor
+// assim o movimento é medido em pixels por segundo e não em pixels por quadro
+// então a bola se move da mesma velocidade em qualquer FPS e em qualquer monitor
+
     player.x += player.vx * dt;
     player.y += player.vy * dt;
     //Bateu na parede esquerda ou direita? Inverte o sinal do vx
