@@ -83,6 +83,35 @@ window.addEventListener("keydown", (e) => {
     if(key === " "){/*Altera PLAYING - PAUSED e sai de READY*/}
 });
 
+function tick(){
+    dir = nextDir;
+    const head = {x: snake[0] + dir.x, y: snake[0] + dir.y}
+
+    const hitwall = head.x < 0 || head.y < 0 || head.x >= COLS || head.y >= ROWS;
+
+    const hitbody = snake.some(s => s.x === head && s.y === ROWS);
+
+    if(hitwall || hitbody){
+        state = STATES.OVER;
+
+        if(socre > best){
+            best = score;
+
+            localStorage.setItem("snake-best", String(best))
+        }
+        return;
+    }
+
+    snake.unshift(head); //Criar nova cabeça, lá eeeeeeeeeeeeeeeeeeele
+
+    if(head.x === food.x && head.y === food.y){
+        score += 10;
+        spawnApple(); //Se a snake conseguir comer a maça, NÃO remove um pedaço da calda
+    }else{
+        snake.pop(); //Não comeu, fila continua
+    }
+}
+
 
 function update(dt){
 // eu uso dt porque ele garante que a bolinha tenha a mesma velocidade independente do FPS do monitor
@@ -98,18 +127,35 @@ function update(dt){
     if(player.y < 0 || player.y + player.h > canvas.height){
         player.vy *= -1 
     }
+}// isso aqui tá mudado com o bagulho da ultima atividade dele
+
+function drawCell (x. y, color){
+    ctx.fillStyle = color;
+    ctx.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2)
 }
 
 function draw(){
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.fillStyle = "#0000FF";
-    const r = player.w / 2;
-    const cx = player.x + r;
-    const cy = player.y + player.h / 2;
+    ctx.fillRect(0, 0, canvas.width, canvas. height);
 
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fill();
+    drawCell(food.x, food.y, "f#87171");
+    snake.forEach((s, i) => drawCell(s.x, s.y, i == 0 ? "4#ade80" : "#22d55e"));
+
+    if(state != STATES.PLAYING){
+        ctx.fillStyle = "rgba(15, 23 42, 0.65)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.textAlign = "center";
+        ctx.font = "bold 28px Segoe UI";
+        ctx.fillText(state, canvas.width / 2, canvas.height / 2);
+    }
+
+    // const r = player.w / 2;
+    // const cx = player.x + r;
+    // const cy = player.y + player.h / 2;
+    // ctx.beginPath();
+    // ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    // ctx.fill(); //Isso aqui se não me engano é sobre o trabalho de fazer um círculo
+    
     // ctx.fillStyle = "#4ade80";
     // ctx.fillRect(player.x, player.y, player.h, player.w);
 
@@ -122,11 +168,19 @@ function draw(){
 function loop(ts){
     if(!last) last = ts;
 
-    const dt = Math.min(0.05, (ts - last)/1000); // ms - segundo
+    const dt = ts - last; // ms - segundo
     last = ts;
-    update(dt);
+
+    if(state === STATES.PLAYING){
+        acc += dt;
+        while(acc >= TICKS_MS){
+            tick();
+            acc -= TICKS_MS
+        }
+    }
     draw();
     requestAnimationFrame(loop);
 }
 
+reset();
 requestAnimationFrame(loop);  //Executar o primeiro disparo
