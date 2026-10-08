@@ -1,7 +1,7 @@
 Opinião dos meu colegas que testaram o game:
 
-- Obstáculo parado no meio seria melhor se fosse móvel daí ficaria mais difícil
-- Tela se lovimenta quando utilizam as setinhas
-- Cores não muito bonitas, não combinam muti
--  Mapa não está centralizado
-- Cobrinha e comidas podem nascder e passar metado da hitbox pela linha das laterais(deviam morrer)
+- Obstáculo parado no meio seria melhor se fosse móvel daí ficaria mais difícil - MANTIVE NO MEIO PARA SER A "FASE"/MAPA FÁCIL
+- Tela se lovimenta quando utilizam as setinhas - CORRIGIDO
+- Cores não muito bonitas, não combinam muito - MANTIVE AS CORES, NA MINHA OPINIÃO ESTÃO BOAS E EU GOSTEI
+-  Mapa não está centralizado - CENTRALIZADO JÁ
+- Cobrinha e comidas podem nascder e passar metado da hitbox pela linha das laterais(deviam morrer) - CORRIGIDO, NEM FRUTAS NEM A MINHOCA PODEM NASCER DENTRO DAS LINHAS DO MAPA E A COLISÃO ESTÁ CERTINHA
