@@ -1,810 +1,685 @@
-
 "use strict";
 
-// Tamanho lógico do jogo
-const LARGURA = 480;
-const ALTURA = 520;
-
+const LARGURA = 800, ALTURA = 720;
 const canvas = document.getElementById("blocos");
 const ctx = canvas.getContext("2d");
-
-// Aumenta a resolução interna para reduzir o serrilhado
-function ajustarResolucaoCanvas() {
-    const rect = canvas.getBoundingClientRect();
-    const escalaCSS = rect.width > 0 ? rect.width / LARGURA : 1;
-
-    const escala = Math.max(
-        1,
-        Math.min(3, escalaCSS * (window.devicePixelRatio || 1))
-    );
-
-    canvas.width = Math.round(LARGURA * escala);
-    canvas.height = Math.round(ALTURA * escala);
-
-    ctx.setTransform(
-        canvas.width / LARGURA,
-        0,
-        0,
-        canvas.height / ALTURA,
-        0,
-        0
-    );
-
-    ctx.imageSmoothingEnabled = true;
-}
-
-ajustarResolucaoCanvas();
-window.addEventListener("resize", ajustarResolucaoCanvas);
-
-// Raquete
-const paddle = {
-    w: 94,
-    h: 10,
-    x: (LARGURA - 94) / 2,
-    y: ALTURA - 30,
-    speed: 420
-};
-
-// Bola
-const ball = {
-    r: 6.5,
-    x: LARGURA / 2,
-    y: ALTURA - 46,
-    vx: 0,
-    vy: 0,
-    launched: false
-};
-
 const teclas = Object.create(null);
 
-let bricks = [];
-let score = 0;
-let lives = 3;
-let gameOver = false;
-let victory = false;
-let paused = false;
-
-// Paleta inspirada na bandeira bissexual:
-// rosa, roxo e azul
-const brickColors = [
-    "#F12683",
-    "#D43B9D",
-    "#9953B5",
-    "#3979E8"
+const cores = [
+  "#FF238A",
+  "#E72FA8",
+  "#B448DE",
+  "#8254F0",
+  "#3487FF"
 ];
 
-// Cria os blocos
+const paddle = {
+  w: 118, baseW: 118, h: 12,
+  x: (LARGURA - 118) / 2,
+  y: ALTURA - 42,
+  speed: 520
+};
+
+let bricks = [], balls = [], powerups = [];
+let score = 0, lives = 3, destroyedCount = 0;
+let gameOver = false, victory = false, paused = false;
+let wideTimer = 0, speedMultiplier = 1;
+
+// Ajusta a resolução sem distorcer o tabuleiro.
+function ajustarResolucaoCanvas() {
+  const largura = canvas.getBoundingClientRect().width || LARGURA;
+  const escala = Math.max(
+    1,
+    Math.min(3, largura / LARGURA * (window.devicePixelRatio || 1))
+  );
+
+  canvas.width = Math.round(LARGURA * escala);
+  canvas.height = Math.round(ALTURA * escala);
+
+  ctx.setTransform(
+    canvas.width / LARGURA, 0,
+    0, canvas.height / ALTURA,
+    0, 0
+  );
+
+  ctx.imageSmoothingEnabled = true;
+}
+
+window.addEventListener("resize", ajustarResolucaoCanvas);
+
+// Cria nove colunas e cinco fileiras, sem blocos fantasmas.
 function construirBlocos() {
-    bricks = [];
+  bricks = [];
 
-    for (let row = 0; row < 4; row++) {
-        for (let col = 0; col < 7; col++) {
+  const colunas = 9, linhas = 5;
+  const w = 78, h = 31;
+  const gapX = 8, gapY = 12;
 
-            const hole =
-                (row === 1 && col === 0) ||
-                (row === 2 && col === 5);
+  const inicioX =
+    (LARGURA - (colunas * w + (colunas - 1) * gapX)) / 2;
 
-            let decoration = "";
+  const inicioY = 100;
 
-            if (
-                (row === 0 && col === 3) ||
-                (row === 1 && col === 6)
-            ) {
-                decoration = "ring";
-            } else if (row === 2 && col === 4) {
-                decoration = "lines";
-            } else if (
-                row === 3 &&
-                (col === 1 || col === 5)
-            ) {
-                decoration = "cross";
-            }
+  for (let row = 0; row < linhas; row++) {
+    for (let col = 0; col < colunas; col++) {
+      bricks.push({
+        x: inicioX + col * (w + gapX),
+        y: inicioY + row * (h + gapY),
+        w, h,
+        color: cores[row],
+        alive: true,
 
-            bricks.push({
-                x: 18 + col * 64,
-                y: 58 + row * 28,
-                w: 60,
-                h: 23,
-                color: brickColors[row],
-                alive: !hole,
-                hole,
-                decoration
-            });
-        }
+        // Apenas a fileira azul inferior precisa de dois impactos.
+        hp: row === 4 ? 2 : 1,
+
+        points: (5 - row) * 10,
+        row
+      });
     }
+  }
 }
 
-// Limita a raquete à área do jogo
 function limitarRaquete() {
-    paddle.x = Math.max(
-        8,
-        Math.min(LARGURA - paddle.w - 8, paddle.x)
-    );
+  paddle.x = Math.max(
+    8,
+    Math.min(LARGURA - paddle.w - 8, paddle.x)
+  );
 }
 
-// Coloca a bola sobre a raquete
+function velocidadeAtual() {
+  const ativa = balls.find(b => b.launched);
+
+  return ativa
+    ? Math.hypot(ativa.vx, ativa.vy)
+    : Math.min(330 * speedMultiplier, 540);
+}
+
+function novaBola(lancada = false, angulo = 0) {
+  const b = {
+    r: 7,
+    x: paddle.x + paddle.w / 2,
+    y: paddle.y - 11,
+    vx: 0,
+    vy: 0,
+    launched: lancada
+  };
+
+  if (lancada) {
+    const speed = velocidadeAtual();
+    b.vx = Math.sin(angulo) * speed;
+    b.vy = -Math.cos(angulo) * speed;
+  }
+
+  return b;
+}
+
 function reposicionarBola() {
-    ball.x = paddle.x + paddle.w / 2;
-    ball.y = paddle.y - ball.r - 4;
-
-    ball.vx = 0;
-    ball.vy = 0;
-    ball.launched = false;
+  balls = [novaBola()];
 }
 
-// Reinicia a partida
 function reset() {
-    score = 0;
-    lives = 3;
+  score = 0;
+  lives = 3;
+  destroyedCount = 0;
 
-    gameOver = false;
-    victory = false;
-    paused = false;
+  gameOver = false;
+  victory = false;
+  paused = false;
 
-    paddle.x = (LARGURA - paddle.w) / 2;
+  speedMultiplier = 1;
+  powerups = [];
+  wideTimer = 0;
 
-    construirBlocos();
-    reposicionarBola();
+  paddle.w = paddle.baseW;
+  paddle.x = (LARGURA - paddle.w) / 2;
+
+  construirBlocos();
+  reposicionarBola();
+  limitarRaquete();
 }
 
-// Lança a bola
 function lancarBola() {
-    if (gameOver || victory) {
-        reset();
-        return;
+  if (gameOver || victory) {
+    reset();
+    return;
+  }
+
+  if (paused) return;
+
+  const b = balls.find(item => !item.launched);
+  if (!b) return;
+
+  const angle = (Math.random() - 0.5) * 0.6;
+  const speed = Math.min(330 * speedMultiplier, 540);
+
+  b.launched = true;
+  b.vx = Math.sin(angle) * speed;
+  b.vy = -Math.cos(angle) * speed;
+}
+
+function colisaoCirculoRetangulo(c, r) {
+  const x = Math.max(r.x, Math.min(c.x, r.x + r.w));
+  const y = Math.max(r.y, Math.min(c.y, r.y + r.h));
+
+  return (c.x - x) ** 2 + (c.y - y) ** 2 <= c.r ** 2;
+}
+
+// Aumenta a velocidade em 4,125% a cada seis blocos destruídos.
+function aumentarVelocidade() {
+  const fator = 1.04125;
+
+  speedMultiplier = Math.min(speedMultiplier * fator, 1.5);
+
+  for (const b of balls) {
+    if (!b.launched) continue;
+
+    const atual = Math.hypot(b.vx, b.vy);
+    const nova = Math.min(atual * fator, 540);
+
+    b.vx *= nova / atual;
+    b.vy *= nova / atual;
+  }
+}
+
+function aplicarPowerup(item) {
+  if (item.type === "alargar") {
+    if (paddle.w === paddle.baseW) {
+      paddle.x -= (154 - paddle.baseW) / 2;
     }
 
-    if (paused || ball.launched) return;
-
-    ball.launched = true;
-
-    const speed = 290;
-    const angle = (Math.random() - 0.5) * 0.6;
-
-    ball.vx = Math.sin(angle) * speed;
-    ball.vy = -Math.cos(angle) * speed;
+    paddle.w = 154;
+    wideTimer = 5;
+    limitarRaquete();
+  } else {
+    balls.push(novaBola(true, (Math.random() - 0.5) * 1.1));
+  }
 }
 
-// Detecta colisão entre bola e bloco
-function colisaoCirculoRetangulo(circle, rect) {
-    const closestX = Math.max(
-        rect.x,
-        Math.min(circle.x, rect.x + rect.w)
-    );
-
-    const closestY = Math.max(
-        rect.y,
-        Math.min(circle.y, rect.y + rect.h)
-    );
-
-    const dx = circle.x - closestX;
-    const dy = circle.y - closestY;
-
-    return dx * dx + dy * dy <= circle.r * circle.r;
-}
-
-// Atualiza a lógica do jogo
 function update(dt) {
-    if (teclas.arrowleft || teclas.a) {
-        paddle.x -= paddle.speed * dt;
-    }
+  if (paused || gameOver || victory) return;
 
-    if (teclas.arrowright || teclas.d) {
-        paddle.x += paddle.speed * dt;
-    }
+  if (teclas.arrowleft || teclas.a) {
+    paddle.x -= paddle.speed * dt;
+  }
 
+  if (teclas.arrowright || teclas.d) {
+    paddle.x += paddle.speed * dt;
+  }
+
+  limitarRaquete();
+
+  // A raquete volta ao tamanho normal depois de cinco segundos.
+  if (wideTimer > 0 && (wideTimer -= dt) <= 0) {
+    paddle.x += (paddle.w - paddle.baseW) / 2;
+    paddle.w = paddle.baseW;
     limitarRaquete();
+  }
 
-    // A bola acompanha a raquete antes de ser lançada
-    if (!ball.launched) {
-        ball.x = paddle.x + paddle.w / 2;
-        ball.y = paddle.y - ball.r - 4;
-        return;
+  for (let i = balls.length - 1; i >= 0; i--) {
+    const b = balls[i];
+
+    if (!b.launched) {
+      b.x = paddle.x + paddle.w / 2;
+      b.y = paddle.y - b.r - 4;
+      continue;
     }
 
-    if (paused || gameOver || victory) return;
+    const oldX = b.x, oldY = b.y;
 
-    const oldX = ball.x;
-    const oldY = ball.y;
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
 
-    ball.x += ball.vx * dt;
-    ball.y += ball.vy * dt;
-
-    // Paredes laterais
-    if (ball.x - ball.r < 0) {
-        ball.x = ball.r;
-        ball.vx = Math.abs(ball.vx);
-
-    } else if (ball.x + ball.r > LARGURA) {
-        ball.x = LARGURA - ball.r;
-        ball.vx = -Math.abs(ball.vx);
+    // Paredes laterais.
+    if (b.x - b.r < 0) {
+      b.x = b.r;
+      b.vx = Math.abs(b.vx);
+    } else if (b.x + b.r > LARGURA) {
+      b.x = LARGURA - b.r;
+      b.vx = -Math.abs(b.vx);
     }
 
-    // Teto
-    if (ball.y - ball.r < 0) {
-        ball.y = ball.r;
-        ball.vy = Math.abs(ball.vy);
+    // Teto.
+    if (b.y - b.r < 0) {
+      b.y = b.r;
+      b.vy = Math.abs(b.vy);
     }
 
-    // Perde uma vida quando a bola cai
-    if (ball.y - ball.r > ALTURA) {
-        lives--;
-
-        if (lives <= 0) {
-            gameOver = true;
-            return;
-        }
-
-        reposicionarBola();
-        return;
+    // Bola que caiu.
+    if (b.y - b.r > ALTURA) {
+      balls.splice(i, 1);
+      continue;
     }
 
-    // Colisão com a raquete
+    // Colisão com a raquete.
     if (
-        ball.vy > 0 &&
-        ball.y + ball.r >= paddle.y &&
-        ball.y - ball.r <= paddle.y + paddle.h &&
-        ball.x + ball.r >= paddle.x &&
-        ball.x - ball.r <= paddle.x + paddle.w
+      b.vy > 0 &&
+      b.y + b.r >= paddle.y &&
+      b.y - b.r <= paddle.y + paddle.h &&
+      b.x + b.r >= paddle.x &&
+      b.x - b.r <= paddle.x + paddle.w
     ) {
-        ball.y = paddle.y - ball.r;
+      b.y = paddle.y - b.r;
 
-        const hit =
-            (ball.x - (paddle.x + paddle.w / 2)) /
-            (paddle.w / 2);
+      const hit = Math.max(
+        -1,
+        Math.min(
+          1,
+          (b.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2)
+        )
+      );
 
-        const angle =
-            Math.max(-1, Math.min(1, hit)) *
-            (Math.PI / 3);
+      const angle = hit * Math.PI / 3;
+      const speed = Math.min(
+        Math.hypot(b.vx, b.vy) * 1.012,
+        540
+      );
 
-        const speed = Math.min(
-            Math.hypot(ball.vx, ball.vy) * 1.015,
-            430
-        );
-
-        ball.vx = Math.sin(angle) * speed;
-        ball.vy = -Math.cos(angle) * speed;
+      b.vx = Math.sin(angle) * speed;
+      b.vy = -Math.cos(angle) * speed;
     }
 
-    // Colisão com os blocos
+    // Colisão com os blocos.
     for (const brick of bricks) {
-        if (!brick.alive || brick.hole) continue;
+      if (!brick.alive || !colisaoCirculoRetangulo(b, brick)) {
+        continue;
+      }
 
-        if (colisaoCirculoRetangulo(ball, brick)) {
-            brick.alive = false;
-            score += 10;
+      // Cada impacto retira um ponto de resistência.
+      brick.hp--;
 
-            if (
-                oldY + ball.r <= brick.y ||
-                oldY - ball.r >= brick.y + brick.h
-            ) {
-                ball.vy *= -1;
+      // Pontua e conta apenas quando o bloco é destruído.
+      if (brick.hp <= 0) {
+        brick.alive = false;
+        score += brick.points;
+        destroyedCount++;
 
-            } else if (
-                oldX + ball.r <= brick.x ||
-                oldX - ball.r >= brick.x + brick.w
-            ) {
-                ball.vx *= -1;
+        // o jogador arrisca a bola no topo porque…
+        // os blocos superiores valem mais pontos e exigem estratégia.
 
-            } else {
-                ball.vy *= -1;
-            }
-
-            break;
+        if (destroyedCount % 6 === 0) {
+          aumentarVelocidade();
         }
+
+        // Um power-up cai a cada 12 blocos destruídos.
+        if (destroyedCount % 12 === 0) {
+          powerups.push({
+            x: brick.x + brick.w / 2,
+            y: brick.y + brick.h / 2,
+            r: 9,
+            vy: 135,
+            type: Math.random() < 0.5 ? "alargar" : "multibola"
+          });
+        }
+      }
+
+      // Direção da bola depois do impacto.
+      if (oldY + b.r <= brick.y) {
+        b.y = brick.y - b.r;
+        b.vy = -Math.abs(b.vy);
+      } else if (oldY - b.r >= brick.y + brick.h) {
+        b.y = brick.y + brick.h + b.r;
+        b.vy = Math.abs(b.vy);
+      } else if (oldX + b.r <= brick.x) {
+        b.x = brick.x - b.r;
+        b.vx = -Math.abs(b.vx);
+      } else if (oldX - b.r >= brick.x + brick.w) {
+        b.x = brick.x + brick.w + b.r;
+        b.vx = Math.abs(b.vx);
+      } else {
+        b.vy *= -1;
+      }
+
+      break;
+    }
+  }
+
+  // Só perde uma vida quando todas as bolas caem.
+  if (!balls.length) {
+    if (--lives <= 0) {
+      gameOver = true;
+      return;
     }
 
-    // Vitória
-    if (!bricks.some(brick => !brick.hole && brick.alive)) {
-        victory = true;
-        ball.launched = false;
+    reposicionarBola();
+  }
+
+  // Movimento e captura dos power-ups.
+  for (let i = powerups.length - 1; i >= 0; i--) {
+    const p = powerups[i];
+    p.y += p.vy * dt;
+
+    if (
+      p.y + p.r >= paddle.y &&
+      p.y - p.r <= paddle.y + paddle.h &&
+      p.x >= paddle.x &&
+      p.x <= paddle.x + paddle.w
+    ) {
+      aplicarPowerup(p);
+      powerups.splice(i, 1);
+    } else if (p.y - p.r > ALTURA) {
+      powerups.splice(i, 1);
     }
+  }
+
+  if (!bricks.some(b => b.alive)) {
+    victory = true;
+    balls.forEach(b => b.launched = false);
+  }
 }
 
-// Retângulos com cantos arredondados
+// Desenha retângulos arredondados.
 function caminhoRetanguloArredondado(x, y, w, h, r) {
-    const radius = Math.min(r, w / 2, h / 2);
+  r = Math.min(r, w / 2, h / 2);
 
-    ctx.beginPath();
-    ctx.moveTo(x + radius, y);
-    ctx.arcTo(x + w, y, x + w, y + h, radius);
-    ctx.arcTo(x + w, y + h, x, y + h, radius);
-    ctx.arcTo(x, y + h, x, y, radius);
-    ctx.arcTo(x, y, x + w, y, radius);
-    ctx.closePath();
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }
 
-// Ajusta a luminosidade das cores
-function ajustarCor(hex, delta) {
-    const value = hex.replace("#", "");
-    const num = parseInt(value, 16);
+// Armadura prateada lisa, sem rachaduras.
+function desenharArmadura(b) {
+  ctx.save();
+  ctx.lineJoin = "round";
 
-    const r = Math.max(
-        0,
-        Math.min(255, ((num >> 16) & 255) + delta)
-    );
+  // Borda externa de metal escuro.
+  caminhoRetanguloArredondado(
+    b.x + 1, b.y + 1, b.w - 2, b.h - 2, 6
+  );
+  ctx.strokeStyle = "#525B68";
+  ctx.lineWidth = 7;
+  ctx.stroke();
 
-    const g = Math.max(
-        0,
-        Math.min(255, ((num >> 8) & 255) + delta)
-    );
+  // Superfície prateada acinzentada.
+  caminhoRetanguloArredondado(
+    b.x + 1, b.y + 1, b.w - 2, b.h - 2, 6
+  );
+  ctx.strokeStyle = "#9EA6B2";
+  ctx.lineWidth = 4;
+  ctx.stroke();
 
-    const b = Math.max(
-        0,
-        Math.min(255, (num & 255) + delta)
-    );
-
-    return `rgb(${r}, ${g}, ${b})`;
+  ctx.restore();
 }
 
-function clarearCor(hex, quantidade) {
-    return ajustarCor(hex, quantidade);
-}
-
-function escurecerCor(hex, quantidade) {
-    return ajustarCor(hex, -quantidade);
-}
-
-// Detalhes decorativos exclusivos dos blocos
-function desenharDecoracao(brick) {
-    ctx.save();
-
-    ctx.strokeStyle = "rgba(38, 18, 51, 0.42)";
-    ctx.fillStyle = "rgba(255, 255, 255, 0.18)";
-    ctx.lineWidth = 1.7;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-
-    if (brick.decoration === "ring") {
-        ctx.beginPath();
-
-        ctx.arc(
-            brick.x + brick.w / 2,
-            brick.y + brick.h / 2,
-            5.6,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.stroke();
-
-    } else if (brick.decoration === "lines") {
-        for (let i = 0; i < 3; i++) {
-            const lineY = brick.y + 5 + i * 6;
-
-            caminhoRetanguloArredondado(
-                brick.x + 6, lineY, 18, 2.6, 1.2
-            );
-            ctx.fill();
-
-            caminhoRetanguloArredondado(
-                brick.x + 28, lineY, 18, 2.6, 1.2
-            );
-            ctx.fill();
-        }
-
-    } else if (brick.decoration === "cross") {
-        const cx = brick.x + brick.w / 2;
-        const cy = brick.y + brick.h / 2;
-
-        ctx.beginPath();
-        ctx.moveTo(cx - 7, cy);
-        ctx.lineTo(cx + 7, cy);
-        ctx.moveTo(cx, cy - 7);
-        ctx.lineTo(cx, cy + 7);
-        ctx.stroke();
-    }
-
-    ctx.restore();
-}
-
-// Desenha os blocos com degradê, contorno e brilho
+// Blocos sólidos, sem reflexos nem brilho externo.
 function desenharBlocos() {
-    for (const brick of bricks) {
-        // Espaços pontilhados decorativos
-        if (brick.hole) {
-            ctx.save();
+  for (const b of bricks) {
+    if (!b.alive) continue;
 
-            ctx.strokeStyle = brick.color;
-            ctx.globalAlpha = 0.9;
-            ctx.lineWidth = 1.7;
-            ctx.setLineDash([3, 4]);
-
-            caminhoRetanguloArredondado(
-                brick.x,
-                brick.y,
-                brick.w,
-                brick.h,
-                5
-            );
-
-            ctx.stroke();
-            ctx.restore();
-            continue;
-        }
-
-        if (!brick.alive) continue;
-
-        // Brilho externo suave
-        ctx.save();
-
-        ctx.shadowColor = brick.color;
-        ctx.shadowBlur = 7;
-
-        caminhoRetanguloArredondado(
-            brick.x,
-            brick.y,
-            brick.w,
-            brick.h,
-            6
-        );
-
-        const gradiente = ctx.createLinearGradient(
-            0,
-            brick.y,
-            0,
-            brick.y + brick.h
-        );
-
-        gradiente.addColorStop(
-            0,
-            clarearCor(brick.color, 18)
-        );
-
-        gradiente.addColorStop(0.48, brick.color);
-
-        gradiente.addColorStop(
-            1,
-            escurecerCor(brick.color, 12)
-        );
-
-        ctx.fillStyle = gradiente;
-        ctx.fill();
-
-        ctx.restore();
-
-        // Contorno refinado
-        caminhoRetanguloArredondado(
-            brick.x,
-            brick.y,
-            brick.w,
-            brick.h,
-            6
-        );
-
-        ctx.lineWidth = 1.6;
-        ctx.strokeStyle = "rgba(31, 18, 39, 0.78)";
-        ctx.stroke();
-
-        // Reflexo na parte superior
-        ctx.beginPath();
-        ctx.moveTo(brick.x + 9, brick.y + 3.7);
-        ctx.lineTo(brick.x + brick.w - 9, brick.y + 3.7);
-
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.32)";
-        ctx.lineWidth = 1.25;
-        ctx.lineCap = "round";
-        ctx.stroke();
-
-        desenharDecoracao(brick);
-    }
-}
-
-// Desenha as vidas, a pontuação e o controle de pausa
-function desenharHUD() {
-    for (let i = 0; i < 3; i++) {
-        ctx.beginPath();
-        ctx.arc(22 + i * 23, 25, 7, 0, Math.PI * 2);
-
-        if (i < lives) {
-            ctx.fillStyle = "#fffaff";
-            ctx.shadowColor = "rgba(255, 255, 255, 0.25)";
-            ctx.shadowBlur = 5;
-            ctx.fill();
-            ctx.shadowBlur = 0;
-
-        } else {
-            ctx.strokeStyle = "#9b91a5";
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-        }
-    }
-
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#fff7ff";
-    ctx.font = "700 18px system-ui, sans-serif";
-
-    ctx.fillText(
-        String(score).padStart(5, "0"),
-        LARGURA / 2,
-        31
-    );
-
-    ctx.fillStyle = "#f8e9ff";
-
-    if (paused) {
-        ctx.beginPath();
-        ctx.moveTo(LARGURA - 31, 17);
-        ctx.lineTo(LARGURA - 31, 33);
-        ctx.lineTo(LARGURA - 18, 25);
-        ctx.closePath();
-        ctx.fill();
-
-    } else {
-        caminhoRetanguloArredondado(
-            LARGURA - 31, 18, 4, 15, 1.5
-        );
-        ctx.fill();
-
-        caminhoRetanguloArredondado(
-            LARGURA - 22, 18, 4, 15, 1.5
-        );
-        ctx.fill();
-    }
-
-    ctx.textAlign = "left";
-}
-
-// Telas de pausa, vitória e derrota
-function desenharOverlay(titulo, subtitulo) {
-    ctx.fillStyle = "rgba(15, 11, 22, 0.78)";
-    ctx.fillRect(0, 0, LARGURA, ALTURA);
-
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#fff5ff";
-    ctx.font = "700 23px system-ui, sans-serif";
-
-    ctx.fillText(
-        titulo,
-        LARGURA / 2,
-        ALTURA / 2 - 8
-    );
-
-    ctx.fillStyle = "#d1bed9";
-    ctx.font = "13px system-ui, sans-serif";
-
-    ctx.fillText(
-        subtitulo,
-        LARGURA / 2,
-        ALTURA / 2 + 20
-    );
-
-    ctx.textAlign = "left";
-}
-
-// Desenha o jogo inteiro
-function draw() {
-    ctx.clearRect(0, 0, LARGURA, ALTURA);
-
-    const fundo = ctx.createLinearGradient(
-        0, 0, 0, ALTURA
-    );
-
-    fundo.addColorStop(0, "#191520");
-    fundo.addColorStop(1, "#14111a");
-
-    ctx.fillStyle = fundo;
-    ctx.fillRect(0, 0, LARGURA, ALTURA);
-
-    // Halo sutil no fundo
-    const halo = ctx.createRadialGradient(
-        LARGURA / 2, 135, 5,
-        LARGURA / 2, 135, 260
-    );
-
-    halo.addColorStop(
-        0,
-        "rgba(153, 83, 181, 0.075)"
-    );
-
-    halo.addColorStop(
-        1,
-        "rgba(153, 83, 181, 0)"
-    );
-
-    ctx.fillStyle = halo;
-    ctx.fillRect(0, 0, LARGURA, ALTURA);
-
-    desenharBlocos();
-
-    // Raquete com degradê branco e lilás
     caminhoRetanguloArredondado(
-        paddle.x,
-        paddle.y,
-        paddle.w,
-        paddle.h,
-        5
+      b.x, b.y, b.w, b.h, 6
     );
 
-    const paddleGrad = ctx.createLinearGradient(
-        0,
-        paddle.y,
-        0,
-        paddle.y + paddle.h
-    );
-
-    paddleGrad.addColorStop(0, "#ffffff");
-    paddleGrad.addColorStop(1, "#e5d8f0");
-
-    ctx.fillStyle = paddleGrad;
-    ctx.shadowColor = "rgba(210, 170, 255, 0.2)";
-    ctx.shadowBlur = 9;
+    ctx.fillStyle = b.color;
     ctx.fill();
-    ctx.shadowBlur = 0;
 
-    // Bola branca com leve brilho
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "rgba(15,10,25,.7)";
+    ctx.stroke();
+
+    // A armadura desaparece depois do primeiro impacto.
+    if (b.row === 4 && b.hp === 2) {
+      desenharArmadura(b);
+    }
+  }
+}
+
+function desenharPowerups() {
+  for (const p of powerups) {
     ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
 
-    ctx.arc(
-        ball.x,
-        ball.y,
-        ball.r,
-        0,
-        Math.PI * 2
-    );
+    ctx.fillStyle =
+      p.type === "alargar" ? "#FF238A" : "#3487FF";
 
-    const ballGrad = ctx.createRadialGradient(
-        ball.x - 2,
-        ball.y - 2,
-        1,
-        ball.x,
-        ball.y,
-        ball.r + 1
-    );
-
-    ballGrad.addColorStop(0, "#ffffff");
-    ballGrad.addColorStop(1, "#e9dff4");
-
-    ctx.fillStyle = ballGrad;
-    ctx.shadowColor = "rgba(255, 255, 255, 0.28)";
-    ctx.shadowBlur = 8;
     ctx.fill();
-    ctx.shadowBlur = 0;
 
-    desenharHUD();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
 
-    if (gameOver) {
-        desenharOverlay(
-            "FIM DE JOGO",
-            "Pressione R para jogar novamente"
-        );
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 12px system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
 
-    } else if (victory) {
-        desenharOverlay(
-            "VOCE VENCEU!",
-            "Pressione R para jogar de novo"
-        );
+    ctx.fillText(
+      p.type === "alargar" ? "↔" : "+",
+      p.x,
+      p.y + 0.5
+    );
+  }
 
-    } else if (paused) {
-        desenharOverlay(
-            "PAUSADO",
-            "Pressione P para continuar"
-        );
-
-    } else if (!ball.launched) {
-        ctx.textAlign = "center";
-        ctx.fillStyle = "rgba(235, 222, 242, 0.76)";
-        ctx.font = "500 11px system-ui, sans-serif";
-
-        ctx.fillText(
-            "ESPAÇO OU CLIQUE PARA LANÇAR",
-            LARGURA / 2,
-            ALTURA - 72
-        );
-
-        ctx.textAlign = "left";
-    }
+  ctx.textBaseline = "alphabetic";
 }
 
-// Movimento da raquete pelo mouse
+function desenharHUD() {
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.arc(30 + i * 25, 30, 8, 0, Math.PI * 2);
+
+    if (i < lives) {
+      ctx.fillStyle = "#fffaff";
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = "#9b91a5";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#fff7ff";
+  ctx.font = "700 24px system-ui,sans-serif";
+
+  ctx.fillText(
+    String(score).padStart(5, "0"),
+    LARGURA / 2,
+    38
+  );
+
+  ctx.fillStyle = "#f8e9ff";
+
+  if (paused) {
+    ctx.beginPath();
+    ctx.moveTo(LARGURA - 42, 20);
+    ctx.lineTo(LARGURA - 42, 42);
+    ctx.lineTo(LARGURA - 24, 31);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    caminhoRetanguloArredondado(
+      LARGURA - 42, 21, 5, 20, 2
+    );
+    ctx.fill();
+
+    caminhoRetanguloArredondado(
+      LARGURA - 30, 21, 5, 20, 2
+    );
+    ctx.fill();
+  }
+
+  ctx.textAlign = "left";
+}
+
+function desenharOverlay(titulo, subtitulo) {
+  ctx.fillStyle = "rgba(15,11,22,.82)";
+  ctx.fillRect(0, 0, LARGURA, ALTURA);
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#fff5ff";
+  ctx.font = "700 30px system-ui,sans-serif";
+  ctx.fillText(titulo, LARGURA / 2, ALTURA / 2 - 10);
+
+  ctx.fillStyle = "#d1bed9";
+  ctx.font = "16px system-ui,sans-serif";
+  ctx.fillText(subtitulo, LARGURA / 2, ALTURA / 2 + 23);
+
+  ctx.textAlign = "left";
+}
+
+function draw() {
+  ctx.clearRect(0, 0, LARGURA, ALTURA);
+
+  // Fundo uniforme.
+  ctx.fillStyle = "#17131d";
+  ctx.fillRect(0, 0, LARGURA, ALTURA);
+
+  desenharBlocos();
+  desenharPowerups();
+
+  // Raquete.
+  caminhoRetanguloArredondado(
+    paddle.x, paddle.y, paddle.w, paddle.h, 6
+  );
+
+  ctx.fillStyle = "#eee5fa";
+  ctx.fill();
+
+  // Bolas.
+  for (const b of balls) {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+    ctx.fillStyle = "#fffaff";
+    ctx.fill();
+  }
+
+  desenharHUD();
+
+  if (gameOver) {
+    desenharOverlay(
+      "FIM DE JOGO",
+      "Pressione R para jogar novamente"
+    );
+  } else if (victory) {
+    desenharOverlay(
+      "VOCÊ VENCEU!",
+      "Pressione R para jogar de novo"
+    );
+  } else if (paused) {
+    desenharOverlay(
+      "PAUSADO",
+      "Pressione P para continuar"
+    );
+  } else if (balls.some(b => !b.launched)) {
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#b8aabd";
+    ctx.font = "500 15px system-ui,sans-serif";
+
+    ctx.fillText(
+      "ESPAÇO OU CLIQUE PARA LANÇAR",
+      LARGURA / 2,
+      ALTURA - 105
+    );
+
+    ctx.textAlign = "left";
+  }
+}
+
 function moverRaqueteComPonteiro(event) {
-    const rect = canvas.getBoundingClientRect();
-    const escalaX = LARGURA / rect.width;
+  const rect = canvas.getBoundingClientRect();
 
-    paddle.x =
-        (event.clientX - rect.left) * escalaX -
-        paddle.w / 2;
+  paddle.x =
+    (event.clientX - rect.left) * LARGURA / rect.width -
+    paddle.w / 2;
 
-    limitarRaquete();
+  limitarRaquete();
 }
 
-// Teclado
-window.addEventListener("keydown", (event) => {
-    const key = event.key.toLowerCase();
+// Teclado.
+window.addEventListener("keydown", event => {
+  const key = event.key.toLowerCase();
 
-    if (
-        event.code === "Space" ||
-        key === "arrowleft" ||
-        key === "arrowright"
-    ) {
-        event.preventDefault();
-    }
+  if (
+    event.code === "Space" ||
+    key === "arrowleft" ||
+    key === "arrowright"
+  ) {
+    event.preventDefault();
+  }
 
-    if (key === "r") {
-        reset();
-        return;
-    }
+  if (key === "r") {
+    reset();
+    return;
+  }
 
-    if (
-        key === "p" &&
-        !event.repeat &&
-        !gameOver &&
-        !victory &&
-        ball.launched
-    ) {
-        paused = !paused;
-        return;
-    }
+  if (
+    key === "p" &&
+    !event.repeat &&
+    !gameOver &&
+    !victory &&
+    balls.some(b => b.launched)
+  ) {
+    paused = !paused;
+    return;
+  }
 
-    teclas[key] = true;
+  teclas[key] = true;
 
-    if (event.code === "Space" && !event.repeat) {
-        lancarBola();
-    }
+  if (event.code === "Space" && !event.repeat) {
+    lancarBola();
+  }
 });
 
-window.addEventListener("keyup", (event) => {
-    teclas[event.key.toLowerCase()] = false;
+window.addEventListener("keyup", event => {
+  teclas[event.key.toLowerCase()] = false;
 });
 
-// Evita que alguma tecla permaneça pressionada ao trocar de janela
 window.addEventListener("blur", () => {
-    for (const key of Object.keys(teclas)) {
-        teclas[key] = false;
-    }
+  for (const key of Object.keys(teclas)) {
+    teclas[key] = false;
+  }
 });
 
-// Mouse e toque
+// Mouse e toque.
 canvas.addEventListener(
-    "pointermove",
-    moverRaqueteComPonteiro
+  "pointermove",
+  moverRaqueteComPonteiro
 );
 
-canvas.addEventListener("pointerdown", (event) => {
-    const rect = canvas.getBoundingClientRect();
+canvas.addEventListener("pointerdown", event => {
+  const rect = canvas.getBoundingClientRect();
 
-    const x =
-        (event.clientX - rect.left) *
-        (LARGURA / rect.width);
+  const x = (event.clientX - rect.left) * LARGURA / rect.width;
+  const y = (event.clientY - rect.top) * ALTURA / rect.height;
 
-    const y =
-        (event.clientY - rect.top) *
-        (ALTURA / rect.height);
+  if (
+    x > LARGURA - 60 &&
+    y < 60 &&
+    !gameOver &&
+    !victory &&
+    balls.some(b => b.launched)
+  ) {
+    paused = !paused;
+    return;
+  }
 
-    // Clique no botão de pausa
-    if (
-        x > LARGURA - 45 &&
-        y < 45 &&
-        ball.launched &&
-        !gameOver &&
-        !victory
-    ) {
-        paused = !paused;
-        return;
-    }
-
-    lancarBola();
+  lancarBola();
 });
 
-// Loop principal
+// Loop principal.
 let lastTime = 0;
 
 function loop(timestamp) {
-    if (!lastTime) lastTime = timestamp;
+  if (!lastTime) lastTime = timestamp;
 
-    const dt = Math.min(
-        0.033,
-        (timestamp - lastTime) / 1000
-    );
+  const dt = Math.min(
+    0.033,
+    (timestamp - lastTime) / 1000
+  );
 
-    lastTime = timestamp;
+  lastTime = timestamp;
 
-    update(dt);
-    draw();
+  update(dt);
+  draw();
 
-    requestAnimationFrame(loop);
+  requestAnimationFrame(loop);
 }
 
-// Inicia o jogo
+// Inicia o jogo.
 reset();
+ajustarResolucaoCanvas();
 requestAnimationFrame(loop);

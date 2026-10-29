@@ -1,100 +1,161 @@
-
 * {
-    box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+:root {
+  color-scheme: dark;
 }
 
 body {
-    margin: 0;
-    min-height: 100vh;
-    padding: 38px 18px 36px;
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(
+    ellipse at 50% 0%,
+    rgba(115, 53, 132, .12),
+    transparent 48%
+  ), #100e15;
+  color: #eee7f3;
+  font-family: "Trebuchet MS", system-ui, sans-serif;
+}
 
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+.game-container {
+  width: min(1600px, 100%);
+  min-height: 100dvh;
+  margin: auto;
+  padding: clamp(12px, 2vh, 24px) clamp(12px, 2vw, 30px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 320px);
+  gap: clamp(20px, 3vw, 54px);
+  align-items: center;
+}
 
-    background:
-        radial-gradient(
-            ellipse at 50% 0%,
-            rgba(115, 53, 132, 0.16),
-            transparent 48%
-        ),
-        linear-gradient(
-            145deg,
-            #100e15,
-            #17131e 55%,
-            #100e15
-        );
+#blocos {
+  display: block;
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: center;
+  width: min(100%, 102.22dvh);
+  max-height: 92dvh;
+  height: auto;
+  aspect-ratio: 800 / 720;
+  border: 1px solid rgba(194, 142, 215, .22);
+  border-radius: 16px;
+  background: #17131d;
+  box-shadow: 0 18px 55px rgba(0, 0, 0, .3);
+  image-rendering: auto;
+  touch-action: none;
+}
 
-    color: #eee7f3;
-    font-family: "Trebuchet MS", system-ui, sans-serif;
+.side-panel {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 h1 {
-    margin: 22px 0 14px;
-
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: clamp(2rem, 5vw, 2.7rem);
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-align: center;
-
-    background: linear-gradient(
-        90deg,
-        #f12683 8%,
-        #bb59b8 51%,
-        #568bff 92%
-    );
-
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-
-    text-shadow: 0 5px 24px rgba(153, 83, 181, 0.10);
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.8rem, 2.6vw, 2.7rem);
+  line-height: 1.12;
+  font-weight: 700;
+  letter-spacing: .06em;
+  overflow-wrap: anywhere;
+  background: linear-gradient(
+    90deg,
+    #f12683 8%,
+    #bb59b8 51%,
+    #568bff 92%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 p {
-    max-width: 900px;
-    margin: 0 0 28px;
+  margin: 0;
+  color: #c8bdce;
+  font-size: clamp(.92rem, 1.1vw, 1.05rem);
+  line-height: 1.7;
+}
 
-    color: #c8bdce;
-    font-family: "Trebuchet MS", system-ui, sans-serif;
-    font-size: clamp(0.88rem, 2vw, 1rem);
-    line-height: 1.8;
+.instructions {
+  display: grid;
+  gap: 12px;
+  color: #e8dceb;
+}
+
+.instructions span {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.instructions small {
+  color: #c8bdce;
+  font-size: .92rem;
+  margin-left: 4px;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 26px;
+  padding: 4px 7px;
+  border: 1px solid rgba(213, 174, 230, .25);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .055);
+  color: #f6eafa;
+  font: 600 .78rem system-ui, sans-serif;
+  text-align: center;
+}
+
+.fullscreen-hint {
+  margin-top: 8px;
+  font-size: .87rem;
+  color: #a99caf;
+}
+
+.fullscreen-hint kbd {
+  font-size: .72rem;
+}
+
+/* Telas menores */
+@media (max-width: 760px) {
+  .game-container {
+    min-height: 100dvh;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    gap: 16px;
+    padding: 18px 12px;
+  }
+
+  .side-panel {
+    grid-column: 1;
+    grid-row: 1;
     text-align: center;
-    letter-spacing: 0.025em;
-}
+    gap: 10px;
+  }
 
-canvas {
-    display: block;
+  h1 {
+    font-size: clamp(1.8rem, 7vw, 2.6rem);
+    letter-spacing: .045em;
+  }
 
-    width: min(720px, 92vw);
-    height: auto;
-    aspect-ratio: 480 / 520;
+  .instructions {
+    width: fit-content;
+    max-width: 100%;
+    margin: 0 auto;
+    text-align: left;
+    gap: 8px;
+  }
 
-    border: 1px solid rgba(194, 142, 215, 0.22);
-    border-radius: 14px;
-
-    background: #17141d;
-
-    box-shadow:
-        0 24px 70px rgba(0, 0, 0, 0.42),
-        0 0 34px rgba(153, 83, 181, 0.06),
-        inset 0 0 0 1px rgba(255, 255, 255, 0.025);
-
-    image-rendering: auto;
-    touch-action: none;
-}
-
-@media (max-width: 540px) {
-    body {
-        padding: 22px 10px;
-    }
-
-    h1 {
-        letter-spacing: 0.07em;
-    }
-
-    p {
-        margin-bottom: 20px;
-    }
+  #blocos {
+    grid-column: 1;
+    grid-row: 2;
+    width: min(100%, 102.22dvh);
+    max-height: 78dvh;
+  }
 }

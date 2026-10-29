@@ -1,17 +1,34 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Quebra-Blocos</title>
-<link rel="stylesheet" href="style.css">
-<script src="script.js" defer></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#100e15">
+  <title>Quebra-Blocos</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
 </head>
 <body>
-<main class="game-container">
-    <h1>QUEBRA-BLOCOS</h1>
-    <p>Use ← → ou A/D para mover · ESPAÇO ou clique para lançar · P pausa · R reinicia</p>
-    <canvas id="blocos" width="480" height="520" aria-label="Jogo Quebra-Blocos"></canvas>
-</main>
+  <main class="game-container">
+    <canvas id="blocos" width="800" height="720"
+      aria-label="Jogo Quebra-Blocos"></canvas>
+
+    <section class="side-panel">
+      <h1>QUEBRA-BLOCOS</h1>
+      <p>Destrua os blocos e tente não deixar a bola cair.</p>
+
+      <div class="instructions">
+        <span><kbd>←</kbd> <kbd>→</kbd> ou <kbd>A</kbd>/<kbd>D</kbd>
+          <small>mover a raquete</small></span>
+        <span><kbd>ESPAÇO</kbd> <small>lançar a bola</small></span>
+        <span><kbd>P</kbd> <small>pausar ou continuar</small></span>
+        <span><kbd>R</kbd> <small>reiniciar a partida</small></span>
+      </div>
+
+      <p class="fullscreen-hint">
+        Dica: pressione <kbd>F11</kbd> para jogar em tela cheia.
+      </p>
+    </section>
+  </main>
 </body>
 </html>
