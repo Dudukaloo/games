@@ -610,7 +610,7 @@ window.addEventListener("keydown", event => {
     key === "p" &&
     !event.repeat &&
     !gameOver &&
-    !victory &&
+    !victory && 
     balls.some(b => b.launched)
   ) {
     paused = !paused;
@@ -623,6 +623,7 @@ window.addEventListener("keydown", event => {
     lancarBola();
   }
 });
+
 
 window.addEventListener("keyup", event => {
   teclas[event.key.toLowerCase()] = false;
