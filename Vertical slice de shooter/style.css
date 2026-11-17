@@ -1,9 +1,12 @@
-*{
+
+* {
     box-sizing: border-box;
 }
 
-body{
+body {
     margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -12,24 +15,63 @@ body{
     color: #e2e8f0;
 }
 
-header{
+header {
     text-align: center;
     padding: 16px 12px 8px;
+    flex-shrink: 0;
 }
 
-h1{
+h1 {
     margin: 0;
     color: #38bdf8;
 }
 
-.hud{
-    display: flex;
-    gap: 24px;
-    margin: 8px 0 12px;
+header p {
+    margin: 8px 0 0;
 }
 
-canvas{
+.hud {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 24px;
+    margin: 8px 12px 12px;
+    flex-shrink: 0;
+}
+
+canvas {
+    display: block;
     border: 4px solid #38bdf8;
     border-radius: 8px;
     background: radial-gradient(#0b1224, #020617);
+
+    /* Mantém a proporção original do jogo.
+       Reduz o tamanho somente quando necessário. */
+
+    width: min(480px, 92vw, calc((100dvh - 145px) * 0.75));
+    height: auto;
+    flex-shrink: 1;
+}
+
+/* Ajustes para telas com pouca altura */
+
+@media (max-height: 650px) {
+    header {
+        padding: 6px 10px 4px;
+    }
+
+    header p {
+        margin-top: 4px;
+        font-size: 13px;
+    }
+
+    .hud {
+        gap: 10px 16px;
+        margin: 4px 10px 8px;
+        font-size: 13px;
+    }
+
+    canvas {
+        width: min(480px, 92vw, calc((100dvh - 125px) * 0.75));
+    }
 }

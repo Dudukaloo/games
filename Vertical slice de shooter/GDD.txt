@@ -1,0 +1,10 @@
+
+Nome: Shooter Defender.
+
+Objetivo: destruir os inimigos antes que escapem e proteger a nave.
+
+Controles: A/D ou setas movem; Espaço/↑ atira; X utiliza o tiro especial com recarga de 2 segundos; P pausa; R reinicia.
+
+Regra de falha: cada inimigo que escapa pela base tira 1 vida. Cada inimigo que colide com a nave também tira 1 vida. O jogador começa com 5 vidas.
+
+Urgência: o jogador deve sentir urgência porque cada inimigo que escapa ou atinge a nave reduz suas vidas, exigindo priorizar os alvos e utilizar o tiro especial no momento certo.
